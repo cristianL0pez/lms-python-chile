@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar sesión</title>
+    <!-- Agrega el enlace al archivo de estilos CSS de Material Icons -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <!-- Agrega tus enlaces a los archivos CSS personalizados -->
+    <!-- <link rel="stylesheet" href="/static/css/styles.css"> -->
+</head>
+<body>
+    <div class="container">
+        <h1>Iniciar sesión</h1>
+        <!-- Agrega el botón de inicio de sesión de Google -->
+        <div class="google-login-btn" onclick="loginGoogle()">
+            <i class="material-icons">login</i>
+            Iniciar sesión con Google
+        </div>
+    </div>
+
+    
+</body>
+    <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-auth-compat.js"></script>
+    <script>
+        const firebaseApp = firebase.initializeApp({ 
+            apiKey: "AIzaSyBCNkx6U_f3Wi-3xGXQ29ikdLWlf75jw_A",
+            authDomain: "lms-python-chile.firebaseapp.com",
+            projectId: "lms-python-chile",
+            storageBucket: "lms-python-chile.appspot.com",
+            messagingSenderId: "553216770906",
+            appId: "1:553216770906:web:34959c752a752656f96963",
+            measurementId: "G-H33F7ML7V5"
+         });
+        const db = firebaseApp.firestore();
+        const auth = firebaseApp.auth();
+     </script>
+    <script>
+        function loginGoogle() {
+  var provider = new firebase.auth.GoogleAuthProvider();
+  firebase
+    .auth()
+    .signInWithPopup(provider)
+    .then((result) => {
+        var token = result.credential.accessToken;
+        var user = result.user;
+        var userData = {
+            token: token,
+            uid: user.uid,
+            displayName: user.displayName,
+            email: user.email,
+            photoURL: user.photoURL
+      };
+      // Envía los datos del usuario al backend (FastAPI) mediante una solicitud HTTP POST
+      fetch('/login/', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${result.credential.accessToken}`, // Envia el token en el encabezado de autorización
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(userData)
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log(data);
+        // Aquí puedes redirigir al usuario a la página de cursos o realizar otras acciones después del inicio de sesión
+      })
+      .catch(error => {
+        console.error('Error al iniciar sesión:', error);
+      });
+    })
+    .catch((error) => {
+      console.error("Error al iniciar sesión:", error);
+    });
+}
+
+    </script>
+</html>
