@@ -1,15 +1,16 @@
-FROM python:3.9
+# Pull base image
+FROM python:3.11
 
-# 
-WORKDIR /lms-python-chile
+# Set environment varibles
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
 
-# 
-COPY ./ /lms-python-chile/
+WORKDIR /code/
 
-# 
-RUN pip install --no-cache-dir --upgrade -r /lms-python-chile/requirements.txt
+# Install dependencies
 
-COPY ./ /lms-python-chile/
+COPY . /code/
 
-# 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80"]
+RUN pip3 install --no-cache-dir --upgrade -r ./requirements.txt
+
+EXPOSE 8000

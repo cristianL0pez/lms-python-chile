@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Depends, HTTPException
+from fastapi import FastAPI, Request, Depends, HTTPException, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,18 +6,26 @@ from fastapi.security import OAuth2PasswordBearer
 import uvicorn
 from fastapi.staticfiles import StaticFiles
 import firebase_admin
-from firebase_admin import credentials
-from models import User, Course
-from typing import List
+from firebase_admin import credentials , auth
+import os
+from fastapi_sqlalchemy import DBSessionMiddleware
+from fastapi_sqlalchemy import db
+from .models import User as User_model
+from .schema import User as User_schema
+from dotenv import load_dotenv
+from datetime import datetime 
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import HTTPException
+from fastapi import Body
+from typing import Optional
+from pydantic import BaseModel, AnyHttpUrl, HttpUrl, constr, validator
+
 
 
 app = FastAPI()
 
-templates = Jinja2Templates(directory="src")
-static_directory = "static"  # Ruta a la carpeta static de tu proyecto
-static_files = StaticFiles(directory=static_directory)
 
-app.mount("/static", static_files, name="static")
+
 
 # Configuracion CORS
 origins = ["*"]  # Agrega los orígenes permitidos aquí
@@ -36,55 +44,37 @@ firebase_admin.initialize_app(cred)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
-# Ruta para el index
-@app.get("/", response_class=HTMLResponse)
-async def read_index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 
 
-# Ruta para mostrar el formulario de inicio de sesión
-@app.get("/login/", response_class=HTMLResponse)
-async def show_login_form(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
-
-
-# Función para verificar el token de acceso
-def verify_token(token: str = Depends(oauth2_scheme)):
-    # Aquí puedes implementar la lógica para verificar y decodificar el token de acceso
-    # Si el token es válido, puedes obtener los datos del usuario y devolverlos en un modelo
-    # Si el token es inválido, puedes lanzar una excepción HTTP con el mensaje "Token de acceso inválido"
-
-    # Ejemplo:
-    # user_data = decode_jwt_token(token)
-    # return user_data
-
-    # Si aún no tienes implementada la lógica de verificación del token, puedes simplemente devolver el token por ahora:
-    return token
-
-# Endpoint para procesar el inicio de sesión
-@app.post("/login/")
-async def login(user_data: dict, token: str = Depends(verify_token)):
+# Endpoint para iniciar sesión con Firebase
+@app.post("/login", response_model=User_schema)
+async def login_firebase(user:User_schema):
     try:
-        # Aquí puedes implementar la lógica para manejar los datos del usuario
-        # Por ejemplo, puedes guardar los datos en una base de datos, crear una sesión, etc.
-        # Luego, puedes devolver una respuesta adecuada para indicar que el inicio de sesión fue exitos
-        
-        return {"message": "Inicio de sesión exitoso", "user_data": user_data }
+        decoded_token = auth.verify_id_token(User_schema.token)
+        user = User_model(
+            uid=decoded_token['uid'],
+            displayName=decoded_token.get('name', ''),
+            email=decoded_token.get('email', ''),
+            photoURL=decoded_token.get('picture', '')
+        )
+        # Guardar los datos del usuario en la base de datos
+        with db():
+            db_user = db.session.query(User_model).filter(User_model.uid == user.uid).first()
+            if not db_user:
+                db.session.add(user)
+                db.session.commit()
+            else:
+                # Si el usuario ya existe en la base de datos, actualiza sus datos
+                db_user.displayName = user.displayName
+                db_user.email = user.email
+                db_user.photoURL = user.photoURL
+                db.session.commit()
+        return user
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Error al procesar el inicio de sesión")
-
-
-# Endpoint protegido para acceder a los cursos (requiere autenticación)
-@app.get("/cursos/", response_class=HTMLResponse, dependencies=[Depends(verify_token)])
-async def read_index(request: Request):
-    # Aquí puedes implementar la lógica para obtener los cursos desde la base de datos
-    cursos = [{"nombre": "Curso de Python 1", "descripcion": "Introducción a Python"},
-              {"nombre": "Curso de Python 2", "descripcion": "Avanzado de Python"}]
-
-    # Si el token es válido y el usuario está autenticado, muestra la página de cursos
-    return templates.TemplateResponse("cursos.html", {"request": request, "cursos": cursos})
-
+        raise HTTPException(status_code=401, detail="Token de Firebase inválido")
 
 
 if __name__ == "__main__":

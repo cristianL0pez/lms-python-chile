@@ -1,19 +1,14 @@
-from pydantic import BaseModel
+from sqlalchemy import Column, String
+from sqlalchemy.ext.declarative import declarative_base
 
-# Modelo de usuario
-class User(BaseModel):
-    id: str
-    display_name: str
-    email: str
-    photo_url: str
+Base = declarative_base()
 
-# Modelo de curso
-class Course(BaseModel):
-    id: str
-    title: str
-    description: str
-    instructor: str
+class User(Base):
+    __tablename__ = 'users'
 
-# Modelo de datos para representar la estructura de userdata
-class UserData(BaseModel):
-    token: str
+    id = Column(String, primary_key=True, index=True)
+    token = Column(String)
+    uid = Column(String)
+    displayName = Column(String)
+    email = Column(String)
+    photoURL = Column(String)
