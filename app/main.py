@@ -2,12 +2,11 @@ from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer
 import uvicorn
 from fastapi.staticfiles import StaticFiles
 import firebase_admin
-from firebase_admin import credentials, auth, initialize_app
-from google.cloud import firestore
+from firebase_admin import credentials
 from models import User, Course
 from typing import List
 
@@ -50,42 +49,41 @@ async def show_login_form(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 
-# Ruta para procesar el inicio de sesión
+# Función para verificar el token de acceso
+def verify_token(token: str = Depends(oauth2_scheme)):
+    # Aquí puedes implementar la lógica para verificar y decodificar el token de acceso
+    # Si el token es válido, puedes obtener los datos del usuario y devolverlos en un modelo
+    # Si el token es inválido, puedes lanzar una excepción HTTP con el mensaje "Token de acceso inválido"
+
+    # Ejemplo:
+    # user_data = decode_jwt_token(token)
+    # return user_data
+
+    # Si aún no tienes implementada la lógica de verificación del token, puedes simplemente devolver el token por ahora:
+    return token
+
 # Endpoint para procesar el inicio de sesión
 @app.post("/login/")
-async def login(request: Request):
+async def login(user_data: dict, token: str = Depends(verify_token)):
     try:
-        # Leer el token de acceso del encabezado de autorización
-        auth_header = request.headers.get("Authorization")
-        if not auth_header:
-            raise HTTPException(status_code=401, detail="Token de acceso no proporcionado")
-
-        token = auth_header.split(" ")[1]
-
-        # Verificar el token de acceso utilizando Firebase Authentication
-        user_info = auth.verify_id_token(token)
-
         # Aquí puedes implementar la lógica para manejar los datos del usuario
         # Por ejemplo, puedes guardar los datos en una base de datos, crear una sesión, etc.
-        # Luego, puedes devolver una respuesta adecuada para indicar que el inicio de sesión fue exitoso
-        return {"message": "Inicio de sesión exitoso", "user_info": user_info}
-    except auth.ExpiredIdTokenError:
-        raise HTTPException(status_code=401, detail="Token de acceso expirado 1")
-    except auth.InvalidIdTokenError:
-        raise HTTPException(status_code=401, detail="Token de acceso inválido 2")
+        # Luego, puedes devolver una respuesta adecuada para indicar que el inicio de sesión fue exitos
+        
+        return {"message": "Inicio de sesión exitoso", "user_data": user_data }
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Error al verificar el token de acceso 3")
+        raise HTTPException(status_code=500, detail="Error al procesar el inicio de sesión")
+
 
 # Endpoint protegido para acceder a los cursos (requiere autenticación)
-@app.get("/cursos/", response_model=List[Course], dependencies=[Depends(oauth2_scheme)])
-async def get_cursos():
-    # Aquí puedes implementar la lógica para obtener los cursos de la base de datos y retornarlos como una lista de objetos Curso
-    # Por ejemplo:
-    # cursos = obtener_cursos_desde_la_base_de_datos()
-    # return cursos
-    return [{"nombre": "Curso de Python 1", "descripcion": "Introducción a Python"},
-            {"nombre": "Curso de Python 2", "descripcion": "Avanzado de Python"}]
+@app.get("/cursos/", response_class=HTMLResponse, dependencies=[Depends(verify_token)])
+async def read_index(request: Request):
+    # Aquí puedes implementar la lógica para obtener los cursos desde la base de datos
+    cursos = [{"nombre": "Curso de Python 1", "descripcion": "Introducción a Python"},
+              {"nombre": "Curso de Python 2", "descripcion": "Avanzado de Python"}]
 
+    # Si el token es válido y el usuario está autenticado, muestra la página de cursos
+    return templates.TemplateResponse("cursos.html", {"request": request, "cursos": cursos})
 
 
 
